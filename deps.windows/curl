@@ -1,0 +1,126 @@
+curl_name='curl'
+curl_version='8.19.0'
+curl_url='https://github.com/curl/curl.git'
+curl_hash='8c908d2d0a6d32abdedda2c52e90bd56ec76c24d'
+CURLARGS=("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded")
+
+curl_setup() {
+  echo "[curl] cloning"
+  if [ ! -d "curl" ]; then
+    git clone "${curl_url}"
+  else
+    git -C curl fetch --tags
+  fi
+  git -C curl reset --hard "${curl_hash}"
+  echo "[curl] cloning -- success"
+}
+
+curl_package_source() {
+  echo "[curl] packaging source"
+  mkdir -p ../ares-deps-source/src/curl
+  cp -R curl/. ../ares-deps-source/src/curl
+  echo "[curl] packaging source -- success"
+}
+
+curl_clean() {
+  echo "[curl] cleaning up -- skipped"
+}
+
+curl_patch() {
+  echo "[curl] patching -- skipped"
+}
+
+curl_build() {
+  echo "[curl] building"
+
+  if [[ $envName = windows-arm64 ]]; then
+    CURLARGS+=("-A" "ARM64")
+  else
+    CURLARGS+=("-A" "x64")
+  fi
+
+  CURLARGS+=(
+    -DBUILD_SHARED_LIBS=ON
+    -DBUILD_STATIC_LIBS=OFF
+    -DBUILD_CURL_EXE=OFF
+    -DBUILD_TESTING=OFF
+    -DCURL_USE_SCHANNEL=ON
+    -DCURL_USE_OPENSSL=OFF
+    -DCURL_ZLIB=OFF
+    -DCURL_BROTLI=OFF
+    -DCURL_ZSTD=OFF
+    -DUSE_LIBIDN2=OFF
+    -DCURL_USE_LIBPSL=OFF
+    -DENABLE_UNICODE=ON
+  )
+
+  cd curl
+  mkdir -p build
+  pushd build
+
+  cmake .. "${CURLARGS[@]}" -G "Visual Studio 17 2022" \
+    -DCMAKE_INSTALL_PREFIX="$SCRIPT_DIR/build_temp/curl/install"
+
+  cmake --build . --config "${config}"
+  cmake --install . --config "${config}"
+
+  popd
+  cd ..
+
+  echo "[curl] building -- success"
+}
+
+curl_install() {
+  echo "[curl] installing"
+  mkdir -p ares-deps/lib
+  mkdir -p ares-deps/include
+  mkdir -p ares-deps/licenses/curl
+
+  cp -R build_temp/curl/install/include/curl ares-deps/include/
+
+  # DLL
+  if [ -f build_temp/curl/install/bin/libcurl.dll ]; then
+    cp -R build_temp/curl/install/bin/libcurl.dll ares-deps/lib/libcurl.dll
+  elif [ -f build_temp/curl/install/bin/libcurl-d.dll ]; then
+    cp -R build_temp/curl/install/bin/libcurl-d.dll ares-deps/lib/libcurl.dll
+  else
+    echo "[curl] error: no curl DLL found"
+    exit 1
+  fi
+
+  # import library: normalize to libcurl.lib for ares consumption
+  if [ -f build_temp/curl/install/lib/libcurl.lib ]; then
+    cp -R build_temp/curl/install/lib/libcurl.lib ares-deps/lib/libcurl.lib
+  elif [ -f build_temp/curl/install/lib/libcurl_imp.lib ]; then
+    cp -R build_temp/curl/install/lib/libcurl_imp.lib ares-deps/lib/libcurl.lib
+  elif [ -f build_temp/curl/install/lib/libcurl-d.lib ]; then
+    cp -R build_temp/curl/install/lib/libcurl-d.lib ares-deps/lib/libcurl.lib
+  elif [ -f build_temp/curl/install/lib/libcurl-d_imp.lib ]; then
+    cp -R build_temp/curl/install/lib/libcurl-d_imp.lib ares-deps/lib/libcurl.lib
+  else
+    echo "[curl] error: no curl import library found"
+    echo "[curl] looked for:"
+    echo "  build_temp/curl/install/lib/libcurl.lib"
+    echo "  build_temp/curl/install/lib/libcurl_imp.lib"
+    echo "  build_temp/curl/install/lib/libcurl-d.lib"
+    echo "  build_temp/curl/install/lib/libcurl-d_imp.lib"
+    exit 1
+  fi
+
+  # Debug symbols
+  if [ -f build_temp/curl/build/lib/${config}/libcurl.pdb ]; then
+    cp -R build_temp/curl/build/lib/${config}/libcurl.pdb ares-deps/lib/libcurl.pdb
+  elif [ -f build_temp/curl/build/lib/${config}/libcurl-d.pdb ]; then
+    cp -R build_temp/curl/build/lib/${config}/libcurl-d.pdb ares-deps/lib/libcurl.pdb
+  fi
+
+  if [ -f build_temp/curl/COPYING ]; then
+    cp -R build_temp/curl/COPYING ares-deps/licenses/curl/COPYING
+  fi
+
+  test -f ares-deps/include/curl/curl.h
+  test -f ares-deps/lib/libcurl.dll
+  test -f ares-deps/lib/libcurl.lib
+
+  echo "[curl] installing -- success"
+}
