@@ -3,6 +3,26 @@ librashader_version='0.9.1'
 librashader_url='https://github.com/SnowflakePowered/librashader.git'
 librashader_hash='ad661b661c3d10cb4a2573a78a41857330d499ca'
 librashader_profile='release'
+librashader_runtimes="${LIBRASHADER_RUNTIMES:-opengl+vulkan}"
+
+librashader_cargo_features() {
+  case "$librashader_runtimes" in
+    opengl)
+      echo 'runtime-opengl'
+      ;;
+    vulkan)
+      echo 'runtime-vulkan'
+      ;;
+    both|opengl+vulkan|vulkan+opengl)
+      echo 'runtime-opengl,runtime-vulkan'
+      ;;
+    *)
+      echo "[librashader] unsupported runtime set: $librashader_runtimes" >&2
+      echo "[librashader] expected one of: opengl, vulkan, opengl+vulkan, both" >&2
+      return 1
+      ;;
+  esac
+}
 
 librashader_setup() {
   echo "[librashader] cloning"
@@ -18,6 +38,7 @@ librashader_setup() {
   elif [[ $config == "Release" ]]; then
     librashader_profile='optimized'
   fi
+  echo "[librashader] runtimes: $librashader_runtimes"
   echo "[librashader] cloning -- success"
 }
 
@@ -46,14 +67,16 @@ librashader_patch() {
 librashader_build() {
   echo "[librashader] building"
   cd librashader
+  local cargo_features
+  cargo_features="$(librashader_cargo_features)" || exit 1
   export RUSTFLAGS='-Ctarget-feature=+crt-static'
   export CXXFLAGS='-MT'
   export CFLAGS='-MT'
   if [[ $envName = windows-arm64 ]]; then
     echo "Targeting aarch64..."
-    cargo run -p librashader-build-script -- --profile ${librashader_profile} --target aarch64-pc-windows-msvc -- --no-default-features --features=runtime-opengl
+    cargo run -p librashader-build-script -- --profile ${librashader_profile} --target aarch64-pc-windows-msvc -- --no-default-features --features=${cargo_features}
   else
-    cargo run -p librashader-build-script -- --profile ${librashader_profile} -- --no-default-features --features=runtime-opengl
+    cargo run -p librashader-build-script -- --profile ${librashader_profile} -- --no-default-features --features=${cargo_features}
   fi
   unset RUSTFLAGS CXXFLAGS CFLAGS
   cd ..
