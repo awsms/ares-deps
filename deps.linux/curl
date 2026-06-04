@@ -1,0 +1,76 @@
+curl_name='curl'
+curl_version='8.20.0'
+curl_url='https://github.com/curl/curl.git'
+curl_hash='a05f34973e6c4bb629d018f7cb51487be1c904d8'
+
+curl_setup() {
+  echo "[curl] cloning"
+  if [ ! -d "curl" ]; then
+    git clone https://github.com/curl/curl.git
+  else
+    git -C curl fetch
+  fi
+  git -C curl reset --hard "$curl_hash"
+  echo "[curl] cloning -- success"
+}
+
+curl_package_source() {
+  echo "[curl] packaging source"
+  mkdir -p ../ares-deps-source/src/curl
+  cp -R curl/. ../ares-deps-source/src/curl
+  echo "[curl] packaging source -- success"
+}
+
+curl_clean() {
+  echo "[curl] cleaning up -- skipped"
+}
+
+curl_patch() {
+  echo "[curl] patching -- skipped"
+}
+
+curl_build() {
+  echo "[curl] building"
+  cmake -S curl -B curl-build \
+    -DCMAKE_BUILD_TYPE="$config" \
+    -DCMAKE_INSTALL_PREFIX="$(pwd)/../ares-deps" \
+    -DBUILD_CURL_EXE=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_LIBCURL_DOCS=OFF \
+    -DBUILD_MISC_DOCS=OFF \
+    -DBUILD_TESTING=OFF \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DCURL_USE_OPENSSL=ON \
+    -DCURL_ZLIB=OFF \
+    -DCURL_BROTLI=OFF \
+    -DCURL_ZSTD=OFF \
+    -DCURL_USE_LIBPSL=OFF \
+    -DCURL_USE_LIBSSH=OFF \
+    -DCURL_USE_LIBSSH2=OFF \
+    -DUSE_LIBIDN2=OFF \
+    -DUSE_NGHTTP2=OFF \
+    -DCURL_DISABLE_DICT=ON \
+    -DCURL_DISABLE_FILE=ON \
+    -DCURL_DISABLE_FTP=ON \
+    -DCURL_DISABLE_GOPHER=ON \
+    -DCURL_DISABLE_IMAP=ON \
+    -DCURL_DISABLE_LDAP=ON \
+    -DCURL_DISABLE_LDAPS=ON \
+    -DCURL_DISABLE_MQTT=ON \
+    -DCURL_DISABLE_POP3=ON \
+    -DCURL_DISABLE_RTSP=ON \
+    -DCURL_DISABLE_SMTP=ON \
+    -DCURL_DISABLE_TELNET=ON \
+    -DCURL_DISABLE_TFTP=ON \
+    -DHTTP_ONLY=ON
+  cmake --build curl-build --config "$config"
+  echo "[curl] building -- success"
+}
+
+curl_install() {
+  echo "[curl] installing"
+  cmake --install build_temp/curl-build --config "$config"
+  mkdir -p ares-deps/licenses/curl
+  cp -R build_temp/curl/COPYING ares-deps/licenses/curl/COPYING
+  echo "[curl] installing -- success"
+}
